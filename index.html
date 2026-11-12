@@ -46,54 +46,104 @@ async function deleteUser(id){
  try{const r=await rpc('turni_elimina_utente',{p_token:token,p_utente:id});if(!r)throw Error('Collaboratore non trovato');notice('Collaboratore eliminato');await refresh()}catch(e){notice(e.message,true)}
 }
 
-let pdfLibrariesPromise;
-function loadPdfLibraries(){
- if(!pdfLibrariesPromise)pdfLibrariesPromise=(async()=>{
-  for(const url of ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js']){
-   await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(new Error('Impossibile caricare il generatore PDF. Controlla la connessione.'));document.head.appendChild(script)});
-  }
-  if(!window.jspdf?.jsPDF)throw new Error('Generatore PDF non disponibile');
- })().catch(e=>{pdfLibrariesPromise=null;throw e});
- return pdfLibrariesPromise;
-}
-async function pdfShell(title,body){
+function pdfShell(title,body){
  try{
-  await loadPdfLibraries();
-  const doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const parsed=new DOMParser().parseFromString('<main>'+body+'</main>','text/html');
+  const groups=[...parsed.querySelectorAll('.daygroup')];
+  const W=1240,H=1754,M=95,RIGHT=W-M,BOTTOM=H-105;
+  const pages=[];let canvas,ctx,y;
+  const ink='#173b54',gray='#607587',border='#dbe6ed';
+  function startPage(){
+   canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
+   ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+   ctx.fillStyle=ink;ctx.fillRect(0,0,W,17);
+   y=95;pages.push(canvas);
+  }
+  function font(size=22,bold=false){ctx.font=(bold?'bold ':'')+size+'px Arial,sans-serif'}
+  function text(value,x,yy,size=22,bold=false,color=ink){font(size,bold);ctx.fillStyle=color;ctx.fillText(String(value),x,yy)}
+  function wrap(value,maxWidth,size=22,bold=false){
+   font(size,bold);const result=[];
+   for(const paragraph of String(value).split('\n')){
+    let line='';
+    for(const word of paragraph.split(/\s+/)){
+     const next=line?line+' '+word:word;
+     if(line&&ctx.measureText(next).width>maxWidth){result.push(line);line=word}else line=next;
+    }
+    result.push(line);
+   }
+   return result;
+  }
+  function pageBreak(need){if(y+need>BOTTOM)startPage()}
+  function rule(yy){ctx.strokeStyle=border;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(M,yy);ctx.lineTo(RIGHT,yy);ctx.stroke()}
+  startPage();
+  text('CALENDARIO TURNI  /  REPORT AMMINISTRATORE',M,y,18,true,'#24728f');y+=57;
+  text(title,M,y,43,true);y+=42;
   const period=new Date(year,month,1).toLocaleDateString('it-IT',{month:'long',year:'numeric'});
-  const content=new DOMParser().parseFromString('<main>'+body+'</main>','text/html');
-  const groups=[...content.querySelectorAll('.daygroup')];
-  const navy=[19,58,83],muted=[97,116,130],blue=[231,242,249];
-  let y=20;
-  const newPage=()=>{doc.addPage();y=19};
-  doc.setFillColor(...navy);doc.rect(0,0,210,8,'F');
-  doc.setFont('helvetica','bold');doc.setTextColor(37,112,145);doc.setFontSize(9);doc.text('CALENDARIO TURNI  /  REPORT AMMINISTRATORE',17,20);
-  doc.setTextColor(...navy);doc.setFontSize(20);doc.text(title,17,31);
-  doc.setFont('helvetica','normal');doc.setTextColor(...muted);doc.setFontSize(10);
-  doc.text(period.charAt(0).toUpperCase()+period.slice(1)+'  |  '+new Date().toLocaleDateString('it-IT'),17,39);
-  doc.setDrawColor(204,219,229);doc.line(17,44,193,44);y=52;
+  text(period.charAt(0).toUpperCase()+period.slice(1)+'   |   '+new Date().toLocaleDateString('it-IT'),M,y,21,false,gray);
+  y+=32;rule(y);y+=42;
   for(const group of groups){
    const heading=group.querySelector('.daytitle')?.textContent?.trim()||'GIORNATA';
    const headers=[...group.querySelectorAll('thead th')].map(x=>x.textContent.trim());
-   const rows=[...group.querySelectorAll('tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(td=>td.innerText?.trim()||td.textContent.trim()));
-   if(y>249)newPage();
-   doc.setFillColor(...blue);doc.roundedRect(17,y,176,10,2,2,'F');
-   doc.setFont('helvetica','bold');doc.setTextColor(...navy);doc.setFontSize(10);doc.text(heading,21,y+6.7);y+=12;
-   doc.autoTable({startY:y,margin:{left:17,right:17,top:18,bottom:18},head:[headers],body:rows,theme:'grid',
-    styles:{font:'helvetica',fontSize:9,cellPadding:3.3,lineColor:[223,232,239],lineWidth:.15,textColor:[34,57,75],valign:'top',overflow:'linebreak'},
-    headStyles:{fillColor:[246,249,252],textColor:[77,103,122],fontStyle:'bold'},
-    alternateRowStyles:{fillColor:[251,253,254]},
-    columnStyles:headers.length===2?{0:{cellWidth:49}}:{0:{cellWidth:52}},
-    didDrawPage:()=>{}});
-   y=doc.lastAutoTable.finalY+9;
+   const rows=[...group.querySelectorAll('tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(td=>{
+    const clone=td.cloneNode(true);clone.querySelectorAll('br').forEach(br=>br.replaceWith('\n'));
+    return clone.textContent.trim();
+   }));
+   pageBreak(150);
+   ctx.fillStyle='#eaf2f7';ctx.fillRect(M,y,RIGHT-M,58);
+   ctx.fillStyle='#26728e';ctx.fillRect(M,y,8,58);
+   text(heading,M+25,y+38,23,true);y+=58;
+   const widths=headers.length===2?[360,RIGHT-M-360]:[310,...Array(headers.length-1).fill((RIGHT-M-310)/(headers.length-1))];
+   function drawHeader(){
+    ctx.fillStyle='#f5f8fa';ctx.fillRect(M,y,RIGHT-M,47);
+    let x=M;
+    headers.forEach((h,i)=>{text(h.toUpperCase(),x+14,y+30,16,true,gray);x+=widths[i]});
+    y+=47;rule(y);
+   }
+   drawHeader();
+   for(const row of rows){
+    const lines=row.map((v,i)=>wrap(v,widths[i]-28,20,i===0));
+    const rowHeight=Math.max(56,...lines.map(z=>z.length*29+20));
+    if(y+rowHeight>BOTTOM){startPage();ctx.fillStyle='#eaf2f7';ctx.fillRect(M,y,RIGHT-M,51);text(heading+' (continua)',M+18,y+33,21,true);y+=51;drawHeader()}
+    let x=M;
+    lines.forEach((arr,i)=>{arr.forEach((line,j)=>text(line,x+14,y+31+j*29,20,i===0,i===0?ink:'#344c5d'));x+=widths[i]});
+    y+=rowHeight;rule(y);
+   }
+   y+=35;
   }
-  if(!groups.length){doc.setFontSize(11);doc.text('Nessun turno presente nel mese.',17,y);y+=12}
-  const totals=content.querySelector('.totals')?.textContent?.trim();
-  if(totals){if(y>264)newPage();doc.setDrawColor(...navy);doc.setLineWidth(.5);doc.line(17,y,193,y);y+=8;doc.setFont('helvetica','bold');doc.setTextColor(...navy);doc.setFontSize(10);const lines=doc.splitTextToSize(totals,176);doc.text(lines,17,y)}
-  const pages=doc.internal.getNumberOfPages();
-  for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setTextColor(130,146,158);doc.setFontSize(8);doc.text('Calendario Turni  |  Documento generato automaticamente',17,286);doc.text(p+' / '+pages,193,286,{align:'right'})}
-  const filename=(title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''))+'-'+year+'-'+String(month+1).padStart(2,'0')+'.pdf';
-  doc.save(filename);
+  if(!groups.length){text('Nessun turno nel mese.',M,y,24);y+=55}
+  const total=parsed.querySelector('.totals')?.textContent?.trim();
+  if(total){pageBreak(95);ctx.fillStyle=ink;ctx.fillRect(M,y,RIGHT-M,3);y+=42;const lines=wrap(total,RIGHT-M,23,true);lines.forEach(line=>{text(line,M,y,23,true);y+=34})}
+  pages.forEach((c,i)=>{const cctx=c.getContext('2d');cctx.fillStyle=gray;cctx.font='16px Arial';cctx.fillText('Calendario Turni  |  Documento generato automaticamente',M,H-58);cctx.textAlign='right';cctx.fillText((i+1)+' / '+pages.length,RIGHT,H-58)});
+  const enc=new TextEncoder(),parts=[],offsets=[0];let length=0;
+  function append(bytes){parts.push(bytes);length+=bytes.length}
+  function ascii(str){return enc.encode(str)}
+  function object(id,body){offsets[id]=length;append(ascii(id+' 0 obj\n'+body+'\nendobj\n'))}
+  append(ascii('%PDF-1.4\n'));
+  const totalObjects=2+pages.length*3;
+  const kids=pages.map((_,i)=>(3+i*3)+' 0 R').join(' ');
+  object(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  object(2,'<< /Type /Pages /Kids ['+kids+'] /Count '+pages.length+' >>');
+  pages.forEach((c,i)=>{
+   const pageId=3+i*3,contentId=pageId+1,imageId=pageId+2;
+   const jpeg=c.toDataURL('image/jpeg',.83).split(',')[1];
+   const binary=atob(jpeg),bytes=new Uint8Array(binary.length);
+   for(let k=0;k<binary.length;k++)bytes[k]=binary.charCodeAt(k);
+   object(pageId,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im0 '+imageId+' 0 R >> >> /Contents '+contentId+' 0 R >>');
+   const commands='q 595.28 0 0 841.89 0 0 cm /Im0 Do Q';
+   object(contentId,'<< /Length '+ascii(commands).length+' >>\nstream\n'+commands+'\nendstream');
+   offsets[imageId]=length;
+   append(ascii(imageId+' 0 obj\n<< /Type /XObject /Subtype /Image /Width '+W+' /Height '+H+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+bytes.length+' >>\nstream\n'));
+   append(bytes);append(ascii('\nendstream\nendobj\n'));
+  });
+  const xref=length;append(ascii('xref\n0 '+(totalObjects+1)+'\n0000000000 65535 f \n'));
+  for(let id=1;id<=totalObjects;id++)append(ascii(String(offsets[id]).padStart(10,'0')+' 00000 n \n'));
+  append(ascii('trailer\n<< /Size '+(totalObjects+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF'));
+  const pdf=new Blob(parts,{type:'application/pdf'}),url=URL.createObjectURL(pdf);
+  const link=document.createElement('a');link.href=url;
+  link.download=title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-')+'-'+year+'-'+String(month+1).padStart(2,'0')+'.pdf';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  notice('PDF creato. Apri il file dalla cartella Download.');
  }catch(e){notice('Errore nella creazione del PDF: '+e.message,true)}
 }
 function dayHeading(date){return new Date(date+'T12:00:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase()}
