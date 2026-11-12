@@ -76,7 +76,7 @@ function pdfShell(title,body){
  @media(max-width:600px){html{background:#fff}body{margin:0;padding:24px 18px;box-shadow:none;max-width:none}.toolbar{margin:0 0 18px;flex-wrap:wrap}.no-print{width:100%;padding:15px}.toolbar span{order:2;width:100%;text-align:center}h1{font-size:24px}.daytitle{padding:11px 12px}td,th{padding:10px 11px}td:first-child,th:first-child{width:35%}}
  @media print{html{background:white}body{margin:0;max-width:none;padding:0;box-shadow:none;font-size:12px}.toolbar{display:none}.daygroup{break-inside:avoid;page-break-inside:avoid}header{margin-bottom:20px}.footer{margin-top:18px}}
  </style></head><body><div class="toolbar"><span>Anteprima documento · Formato A4</span><button class="no-print" onclick="window.print()">Stampa / Salva PDF</button></div><header><div class="eyebrow">Calendario turni · Report amministratore</div><h1>${esc(title)}</h1><p>${esc(period.charAt(0).toUpperCase()+period.slice(1))} &nbsp;·&nbsp; Aggiornato il ${esc(today)}</p></header><main>${body}</main><div class="footer"><span>Calendario Turni</span><span>Documento generato automaticamente</span></div></body></html>`;
- const w=window.open('','_blank');if(!w){notice('Consenti i popup per aprire il riepilogo.',true);return}w.document.open();w.document.write(html);w.document.close();
+ const blob=new Blob([html],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const w=window.open(url,'_blank');if(!w){URL.revokeObjectURL(url);notice('Consenti i popup per aprire il riepilogo.',true);return}setTimeout(()=>URL.revokeObjectURL(url),120000);
 }
 function dayHeading(date){return new Date(date+'T12:00:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase()}
 function exportAvailabilityPDF(){
