@@ -46,37 +46,55 @@ async function deleteUser(id){
  try{const r=await rpc('turni_elimina_utente',{p_token:token,p_utente:id});if(!r)throw Error('Collaboratore non trovato');notice('Collaboratore eliminato');await refresh()}catch(e){notice(e.message,true)}
 }
 
-function pdfShell(title,body){
- const period=new Date(year,month,1).toLocaleDateString('it-IT',{month:'long',year:'numeric'});
- const today=new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'long',year:'numeric'});
- const html=`<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · ${esc(period)}</title><style>
- @page{size:A4;margin:17mm 16mm}
- *{box-sizing:border-box}
- :root{color-scheme:light}
- html{background:#edf2f6}
- body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#243748;max-width:794px;margin:28px auto;padding:43px 48px 36px;background:white;box-shadow:0 12px 48px #233d521a}
- .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;max-width:794px;margin:0 auto 12px}
- .toolbar span{font-size:13px;color:#486278}
- .no-print{background:#123e5b;color:white;padding:12px 18px;border:0;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 3px 8px #123e5b25}
- .eyebrow{font-size:11px;font-weight:800;letter-spacing:2px;color:#287b94;text-transform:uppercase;margin:0 0 8px}
- header{padding-bottom:22px;margin-bottom:26px;border-bottom:2px solid #163f59}
- h1{font-size:27px;line-height:1.2;letter-spacing:-.5px;margin:0 0 10px;color:#12364f}
- header p{color:#687d8e;margin:0;font-size:12px}
- .daygroup{break-inside:avoid;page-break-inside:avoid;margin:0 0 19px;border:1px solid #dbe5ec;border-radius:10px;overflow:hidden}
- .daytitle{background:#eaf2f7;color:#143d57;font-weight:800;font-size:13px;letter-spacing:.25px;padding:12px 15px;border-left:5px solid #23718e}
- table{width:100%;border-collapse:collapse;table-layout:fixed}
- th{text-align:left;color:#617688;background:#f8fafc;font-size:10px;text-transform:uppercase;letter-spacing:.6px;padding:10px 15px;border-bottom:1px solid #e2e9ee}
- td{padding:12px 15px;border-bottom:1px solid #e8eef2;vertical-align:top;font-size:12px;overflow-wrap:anywhere}
- td:first-child,th:first-child{width:32%}
- tr:last-child td{border-bottom:0}
- td strong{font-weight:750;color:#193f57}
- .muted{color:#8293a0;font-style:italic}
- .totals{margin-top:26px;border-top:2px solid #173f59;padding:15px 3px;font-weight:750;color:#173f59;font-size:12px}
- .footer{border-top:1px solid #e4ebf0;margin-top:26px;padding-top:12px;font-size:10px;color:#8294a2;display:flex;justify-content:space-between;gap:10px}
- @media(max-width:600px){html{background:#fff}body{margin:0;padding:24px 18px;box-shadow:none;max-width:none}.toolbar{margin:0 0 18px;flex-wrap:wrap}.no-print{width:100%;padding:15px}.toolbar span{order:2;width:100%;text-align:center}h1{font-size:24px}.daytitle{padding:11px 12px}td,th{padding:10px 11px}td:first-child,th:first-child{width:35%}}
- @media print{html{background:white}body{margin:0;max-width:none;padding:0;box-shadow:none;font-size:12px}.toolbar{display:none}.daygroup{break-inside:avoid;page-break-inside:avoid}header{margin-bottom:20px}.footer{margin-top:18px}}
- </style></head><body><div class="toolbar"><span>Anteprima documento · Formato A4</span><button class="no-print" onclick="window.print()">Stampa / Salva PDF</button></div><header><div class="eyebrow">Calendario turni · Report amministratore</div><h1>${esc(title)}</h1><p>${esc(period.charAt(0).toUpperCase()+period.slice(1))} &nbsp;·&nbsp; Aggiornato il ${esc(today)}</p></header><main>${body}</main><div class="footer"><span>Calendario Turni</span><span>Documento generato automaticamente</span></div></body></html>`;
- const blob=new Blob([html],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const w=window.open(url,'_blank');if(!w){URL.revokeObjectURL(url);notice('Consenti i popup per aprire il riepilogo.',true);return}setTimeout(()=>URL.revokeObjectURL(url),120000);
+let pdfLibrariesPromise;
+function loadPdfLibraries(){
+ if(!pdfLibrariesPromise)pdfLibrariesPromise=(async()=>{
+  for(const url of ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js','https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js']){
+   await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(new Error('Impossibile caricare il generatore PDF. Controlla la connessione.'));document.head.appendChild(script)});
+  }
+  if(!window.jspdf?.jsPDF)throw new Error('Generatore PDF non disponibile');
+ })().catch(e=>{pdfLibrariesPromise=null;throw e});
+ return pdfLibrariesPromise;
+}
+async function pdfShell(title,body){
+ try{
+  await loadPdfLibraries();
+  const doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const period=new Date(year,month,1).toLocaleDateString('it-IT',{month:'long',year:'numeric'});
+  const content=new DOMParser().parseFromString('<main>'+body+'</main>','text/html');
+  const groups=[...content.querySelectorAll('.daygroup')];
+  const navy=[19,58,83],muted=[97,116,130],blue=[231,242,249];
+  let y=20;
+  const newPage=()=>{doc.addPage();y=19};
+  doc.setFillColor(...navy);doc.rect(0,0,210,8,'F');
+  doc.setFont('helvetica','bold');doc.setTextColor(37,112,145);doc.setFontSize(9);doc.text('CALENDARIO TURNI  /  REPORT AMMINISTRATORE',17,20);
+  doc.setTextColor(...navy);doc.setFontSize(20);doc.text(title,17,31);
+  doc.setFont('helvetica','normal');doc.setTextColor(...muted);doc.setFontSize(10);
+  doc.text(period.charAt(0).toUpperCase()+period.slice(1)+'  |  '+new Date().toLocaleDateString('it-IT'),17,39);
+  doc.setDrawColor(204,219,229);doc.line(17,44,193,44);y=52;
+  for(const group of groups){
+   const heading=group.querySelector('.daytitle')?.textContent?.trim()||'GIORNATA';
+   const headers=[...group.querySelectorAll('thead th')].map(x=>x.textContent.trim());
+   const rows=[...group.querySelectorAll('tbody tr')].map(tr=>[...tr.querySelectorAll('td')].map(td=>td.innerText?.trim()||td.textContent.trim()));
+   if(y>249)newPage();
+   doc.setFillColor(...blue);doc.roundedRect(17,y,176,10,2,2,'F');
+   doc.setFont('helvetica','bold');doc.setTextColor(...navy);doc.setFontSize(10);doc.text(heading,21,y+6.7);y+=12;
+   doc.autoTable({startY:y,margin:{left:17,right:17,top:18,bottom:18},head:[headers],body:rows,theme:'grid',
+    styles:{font:'helvetica',fontSize:9,cellPadding:3.3,lineColor:[223,232,239],lineWidth:.15,textColor:[34,57,75],valign:'top',overflow:'linebreak'},
+    headStyles:{fillColor:[246,249,252],textColor:[77,103,122],fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[251,253,254]},
+    columnStyles:headers.length===2?{0:{cellWidth:49}}:{0:{cellWidth:52}},
+    didDrawPage:()=>{}});
+   y=doc.lastAutoTable.finalY+9;
+  }
+  if(!groups.length){doc.setFontSize(11);doc.text('Nessun turno presente nel mese.',17,y);y+=12}
+  const totals=content.querySelector('.totals')?.textContent?.trim();
+  if(totals){if(y>264)newPage();doc.setDrawColor(...navy);doc.setLineWidth(.5);doc.line(17,y,193,y);y+=8;doc.setFont('helvetica','bold');doc.setTextColor(...navy);doc.setFontSize(10);const lines=doc.splitTextToSize(totals,176);doc.text(lines,17,y)}
+  const pages=doc.internal.getNumberOfPages();
+  for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setTextColor(130,146,158);doc.setFontSize(8);doc.text('Calendario Turni  |  Documento generato automaticamente',17,286);doc.text(p+' / '+pages,193,286,{align:'right'})}
+  const filename=(title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''))+'-'+year+'-'+String(month+1).padStart(2,'0')+'.pdf';
+  doc.save(filename);
+ }catch(e){notice('Errore nella creazione del PDF: '+e.message,true)}
 }
 function dayHeading(date){return new Date(date+'T12:00:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase()}
 function exportAvailabilityPDF(){
