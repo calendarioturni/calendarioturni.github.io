@@ -1,7 +1,7 @@
 begin;
 
 -- The RPC keeps its current parameter name so PostgREST callers can migrate.
--- p_pin now receives the collaborator's phone number.
+-- p_pin receives the phone number. p_cognome is kept for RPC compatibility.
 create or replace function public.turni_login_utente(
   p_nome text,
   p_cognome text,
@@ -14,17 +14,16 @@ set search_path = ''
 as $$
 declare
   v_nome text := lower(btrim(coalesce(p_nome, '')));
-  v_cognome text := lower(btrim(coalesce(p_cognome, '')));
   v_telefono text := regexp_replace(coalesce(p_pin, ''), '[^0-9]', '', 'g');
   v_match record;
   v_token text;
-  v_errore constant jsonb := '{"errore":"Accesso non riuscito. Verifica nome, cognome e numero di telefono oppure riprova tra 15 minuti."}'::jsonb;
+  v_errore constant jsonb := '{"errore":"Accesso non riuscito. Verifica nome e numero di telefono oppure riprova tra 15 minuti."}'::jsonb;
 begin
-  if v_nome = '' or v_cognome = '' or v_telefono !~ '^[0-9]{6,15}$' then
+  if v_nome = '' or v_telefono !~ '^[0-9]{6,15}$' then
     return v_errore;
   end if;
 
-  if not coalesce(public.turni_limita_accessi('u:' || v_nome || ':' || v_cognome), false) then
+  if not coalesce(public.turni_limita_accessi('u-telefono:' || v_nome), false) then
     return v_errore;
   end if;
 
@@ -36,7 +35,6 @@ begin
     from public.utenti as u
     where u.attivo is true
       and lower(btrim(u.nome)) = v_nome
-      and lower(btrim(u.cognome)) = v_cognome
       and regexp_replace(
         regexp_replace(u.telefono, '[^0-9]', '', 'g'),
         '^(0039|39)(3[0-9]{9})$', '\2'
