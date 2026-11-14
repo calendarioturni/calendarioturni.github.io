@@ -380,13 +380,19 @@ function startChristmasMusic(){
  if(!santaGreetingPlayed && 'speechSynthesis' in window){
   santaGreetingPlayed=true;
   try{
-   const greeting=new SpeechSynthesisUtterance('Ho ho ho! Merry Christmas!');
+   const greeting=new SpeechSynthesisUtterance('Ho... ho... ho! Merry Christmas, everyone!');
    greeting.lang='en-US';
-   greeting.rate=.77;
-   greeting.pitch=.65;
-   greeting.volume=.9;
+   greeting.rate=.83;
+   greeting.pitch=.86;
+   greeting.volume=.95;
    const voices=speechSynthesis.getVoices();
-   greeting.voice=voices.find(v=>v.lang.startsWith('en')&&/male|david|daniel|george/i.test(v.name))||voices.find(v=>v.lang.startsWith('en'))||null;
+   const english=voices.filter(v=>/^en([-_]|$)/i.test(v.lang));
+   // Prefer a natural English male voice, when the device provides one.
+   greeting.voice=english.find(v=>/premium|enhanced|natural/i.test(v.name)&&/daniel|david|george|male|aaron/i.test(v.name))
+     ||english.find(v=>/daniel|david|george|aaron|male/i.test(v.name))
+     ||english.find(v=>/premium|enhanced|natural/i.test(v.name))
+     ||english.find(v=>/en-GB/i.test(v.lang))
+     ||english[0]||null;
    santaGreeting=greeting;
    greeting.onend=playTrack;
    greeting.onerror=playTrack;
