@@ -371,18 +371,37 @@ function renderChristmasMusicButton(){
  button.setAttribute('aria-label',label);
  button.title=label;
 }
+let santaGreetingPlayed = false;
+let santaGreeting;
 function startChristmasMusic(){
  if(role!=='user'||$('christmasMusicButton').classList.contains('hidden'))return;
  if(!christmasAudio)enableChristmasAudio();
- christmasAudio.play().catch(()=>renderChristmasMusicButton());
+ const playTrack=()=>{if(role==='user')christmasAudio.play().catch(()=>renderChristmasMusicButton())};
+ if(!santaGreetingPlayed && 'speechSynthesis' in window){
+  santaGreetingPlayed=true;
+  try{
+   const greeting=new SpeechSynthesisUtterance('Ho ho ho! Merry Christmas!');
+   greeting.lang='en-US';
+   greeting.rate=.77;
+   greeting.pitch=.65;
+   greeting.volume=.9;
+   const voices=speechSynthesis.getVoices();
+   greeting.voice=voices.find(v=>v.lang.startsWith('en')&&/male|david|daniel|george/i.test(v.name))||voices.find(v=>v.lang.startsWith('en'))||null;
+   santaGreeting=greeting;
+   greeting.onend=playTrack;
+   greeting.onerror=playTrack;
+   speechSynthesis.speak(greeting);
+  }catch(e){playTrack()}
+ }else playTrack();
 }
 function stopChristmasMusic(){
+ if('speechSynthesis' in window)speechSynthesis.cancel();
  if(christmasAudio){christmasAudio.pause();christmasAudio.currentTime=0}
  renderChristmasMusicButton();
 }
 async function toggleChristmasMusic(){
  if(christmasAudio&&!christmasAudio.paused){christmasAudio.pause()}
- else{if(!christmasAudio)enableChristmasAudio();await christmasAudio.play().catch(()=>notice('Tocca di nuovo il pulsante per avviare la musica.',true))}
+ else startChristmasMusic();
  renderChristmasMusicButton();
 }
 async function login(){
@@ -409,6 +428,7 @@ async function login(){
   $('loginPhone').value='';
   const entered=enter();
   await entered;
+  if(role==='user')startChristmasMusic();
  }catch(e){notice(e.message,true)}
 }
 let adminTab=location.hash==='#comunicazioni'?'comunicazioni':'dashboard';
