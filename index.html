@@ -331,7 +331,7 @@ body.adminMode{background:#f5f8fc}
 </dialog>
 </section></main><script>
 const URL_BASE='https://ewdooaypdvktsszfakhk.supabase.co',KEY='sb_publishable_xx5e7hvqo7662FdYW1YNPA_WyuEGX5g';
-let preferredSlots=new Set(JSON.parse(sessionStorage.getItem('ct_preferred_slots')||'[]'));let mode='user',token=sessionStorage.getItem('ct_token')||'',role=sessionStorage.getItem('ct_role')||'',identity=sessionStorage.getItem('ct_identity')||'',turni=[],mine=[],users=[],today=new Date(),year=today.getFullYear(),month=today.getMonth(),selected=today.getDate();
+let preferredSlots=new Set(JSON.parse(sessionStorage.getItem('ct_preferred_slots')||'[]'));let mode='user',token=sessionStorage.getItem('ct_token')||'',role=sessionStorage.getItem('ct_role')||'',identity=sessionStorage.getItem('ct_identity')||'',turni=[],mine=[],users=[],today=new Date(),year=today.getFullYear(),month=11,selected=1;
 const $=id=>document.getElementById(id),dateKey=(y=year,m=month,d=selected)=>`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function notice(msg,error=false){$('notice').innerHTML=`<div class="${error?'error':'success'}">${esc(msg)}</div>`;setTimeout(()=>{$('notice').innerHTML=''},6500)}
 async function rpc(name,args={}){let res=await fetch(URL_BASE+'/rest/v1/rpc/'+name,{method:'POST',headers:{'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(args)});let data=await res.json().catch(()=>null);if(!res.ok)throw Error(data?.message||'Errore di collegamento');return data}
