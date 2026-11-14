@@ -371,37 +371,12 @@ function renderChristmasMusicButton(){
  button.setAttribute('aria-label',label);
  button.title=label;
 }
-let santaGreetingPlayed = false;
-let santaGreeting;
 function startChristmasMusic(){
  if(role!=='user'||$('christmasMusicButton').classList.contains('hidden'))return;
  if(!christmasAudio)enableChristmasAudio();
- const playTrack=()=>{if(role==='user')christmasAudio.play().catch(()=>renderChristmasMusicButton())};
- if(!santaGreetingPlayed && 'speechSynthesis' in window){
-  santaGreetingPlayed=true;
-  try{
-   const greeting=new SpeechSynthesisUtterance('Ho... ho... ho! Merry Christmas, everyone!');
-   greeting.lang='en-US';
-   greeting.rate=.83;
-   greeting.pitch=.86;
-   greeting.volume=.95;
-   const voices=speechSynthesis.getVoices();
-   const english=voices.filter(v=>/^en([-_]|$)/i.test(v.lang));
-   // Prefer a natural English male voice, when the device provides one.
-   greeting.voice=english.find(v=>/premium|enhanced|natural/i.test(v.name)&&/daniel|david|george|male|aaron/i.test(v.name))
-     ||english.find(v=>/daniel|david|george|aaron|male/i.test(v.name))
-     ||english.find(v=>/premium|enhanced|natural/i.test(v.name))
-     ||english.find(v=>/en-GB/i.test(v.lang))
-     ||english[0]||null;
-   santaGreeting=greeting;
-   greeting.onend=playTrack;
-   greeting.onerror=playTrack;
-   speechSynthesis.speak(greeting);
-  }catch(e){playTrack()}
- }else playTrack();
+ christmasAudio.play().catch(()=>renderChristmasMusicButton());
 }
 function stopChristmasMusic(){
- if('speechSynthesis' in window)speechSynthesis.cancel();
  if(christmasAudio){christmasAudio.pause();christmasAudio.currentTime=0}
  renderChristmasMusicButton();
 }
