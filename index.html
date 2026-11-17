@@ -441,7 +441,7 @@ function renderCalendar(){
   const slots=[...grouped].filter(([,free])=>free>0).sort((a,b)=>a[0].localeCompare(b[0]));
   const free=slots.reduce((n,[,f])=>n+f,0),mineDay=mine.some(m=>m.data===key);
   if(role==='user'&&!free&&!mineDay){html+=`<span class="day" style="opacity:.35"><b>${d}</b><small>—</small></span>`;continue}
-  const slotLines=slots.map(([time,places])=>`<span class="day-slot" title="${esc(time)}: ${places} posti liberi"><span>${esc(time.split('–')[0].trim())}</span><span class="slot-divider" aria-hidden="true">|</span><strong>${places}</strong></span>`).join('');
+  const slotLines=slots.map(([time,places])=>`<span class="day-slot" title="${esc(time)}: ${places} posti liberi"><span>${esc(time)}</span></span>`).join('');
   const info=slotLines||`<small>${mineDay&&role==='user'?'Prenotato':ts.length?'Pieno':'—'}</small>`;
   html+=`<button class="day ${role==='user'?(free?'green':''):ts.length?(free?'green':'red'):''} ${selected===d?'selected':''}" onclick="selected=${d};render()" aria-label="${d}, ${free} posti liberi"><b>${d}</b><span class="day-slots">${info}</span></button>`;
  }
